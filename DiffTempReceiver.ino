@@ -17,16 +17,18 @@
 
 #include <ArduinoBLE.h>
 
-BLEService tempService("19B10000-E8F2-537E-4F6C-D104768A1214"); // BLE LED Service
+BLEService tempService("19B10000-E8F2-537E-4F6C-D104768A1214"); // BLE Temperature Service
 
 // BLE LED Switch Characteristic - custom 128-bit UUID, read and writable by central
-BLEFloatCharacteristic tempCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLERead | BLEWrite);
+BLEByteCharacteristic firstTempCharacteristic("19B10001-E8F2-537E-4F6C-D104768A1214", BLEWrite | BLENotify);
+BLEByteCharacteristic secondTempCharacteristic("19B10002-E8F2-537E-4F6C-D104768A1214", BLEWrite | BLENotify);
+
 
 const int ledPin = LED_BUILTIN; // pin to use for the LED
+int temp;
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial);
 
   // set LED pin to output mode
   pinMode(ledPin, OUTPUT);
@@ -43,13 +45,15 @@ void setup() {
   BLE.setAdvertisedService(tempService);
 
   // add the characteristic to the service
-  tempService.addCharacteristic(tempCharacteristic);
+  tempService.addCharacteristic(firstTempCharacteristic);
+  tempService.addCharacteristic(secondTempCharacteristic);
 
   // add service
   BLE.addService(tempService);
 
   // set the initial value for the characeristic:
-  tempCharacteristic.writeValue(0);
+  firstTempCharacteristic.writeValue(0);
+  secondTempCharacteristic.writeValue(0);
 
   // start advertising
   BLE.advertise();
@@ -57,7 +61,8 @@ void setup() {
   Serial.println("BLE Temperature Peripheral");
 }
 
-void loop() {
+void loop() 
+{
   // listen for BLE peripherals to connect:
   BLEDevice central = BLE.central();
 
@@ -68,22 +73,38 @@ void loop() {
     Serial.println(central.address());
 
     // while the central is still connected to peripheral:
-    while (central.connected()) {
+    while (central.connected())
+    {
       // if the remote device wrote to the characteristic,
       // use the value to control the LED:
-      if (tempCharacteristic.written())
+      if (firstTempCharacteristic.written())
       {
-        if (tempCharacteristic.value()) 
-        {   // any value other than 0
-          Serial.print("Temp Update: ");
-          Serial.println(tempCharacteristic.value());
-          //digitalWrite(ledPin, HIGH);         // will turn the LED on
-        } 
-//        else 
-//        {                              // a 0 value
-//          Serial.println(F("LED off"));
-//          digitalWrite(ledPin, LOW);          // will turn the LED off
-//        }
+        Serial.print("High Byte: ");
+        Serial.println(firstTempCharacteristic.value());    
+      }
+
+      if (secondTempCharacteristic.written())
+      {
+        Serial.print("Low Byte: ");
+        Serial.println(secondTempCharacteristic.value());
+        if (firstTempCharacteristic.value() == 1)
+        {
+            temp = 256 + secondTempCharacteristic.value();
+        }
+        else
+        {
+            temp = secondTempCharacteristic.value();
+        }
+        Serial.print ("Temp: ");
+        Serial.println (temp); 
+        if (temp > 190)
+        {
+          digitalWrite(ledPin, HIGH);      
+        }
+        else
+        {
+          digitalWrite(ledPin, LOW);
+        }
       }
     }
 
